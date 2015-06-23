@@ -27,36 +27,130 @@ MIN_PROTO_VERSION = 60000
 PROTO_VERSION = 60000
 MY_SUBVERSION = "/pynode:0.0.1/"
 
+# Proxy handling #
+
+### Utility functions
+def recvall(s, n):
+    '''Receive n bytes from a socket, or fail'''
+    rv = bytearray()
+    while n > 0:
+        d = s.recv(n)
+        if not d:
+            raise IOError('Unexpected end of stream')
+        rv.extend(d)
+        n -= len(d)
+    return rv
+
+### Protocol constants
+class Command:
+    CONNECT = 0x01
+
+class AddressType:
+    IPV4 = 0x01
+    DOMAINNAME = 0x03
+    IPV6 = 0x04
+
+class SOCKS5Proxy(object):
+    '''
+    SOCKS5 proxy, as described in RFC1928
+    '''
+    def __init__(self, host, port):
+        self.dst = (host, port)
+
+    def connect(self, sock, host, port):
+        '''SOCKS5 negotiation.
+        sock must already be connected to proxy.
+        '''
+        # version, nmethods, support unauthenticated
+        sock.sendall(bytearray([0x05, 0x01, 0x00]))
+        # receive version, chosen method
+        rv = recvall(sock, 2)
+        if rv[0] != 0x05:
+            raise IOError('Invalid socks version %i in auth response' % rv[0])
+        if rv[1] != 0x00:
+            raise IOError('Unsupported authentication method %i' % rv[1])
+        # send CONNECT request
+        # ver,cmd,rsv,atyp,asize,addr[asize],port_hi,port_lo
+        assert(len(host) <= 255)
+        assert(port >= 0 and port < 0xffff)
+        sock.sendall(bytearray([0x05, Command.CONNECT, 0x00, AddressType.DOMAINNAME, len(host)]) +
+                     bytearray(host) +
+                     bytearray([port >> 8, port & 0xFF]))
+
+        # receive reponse, including bind address and port (which we ignore)
+        # ver,status,rsv,atyp,[addr],port_hi,port_lo
+        rv = recvall(sock, 4)
+        if rv[0] != 0x05:
+            raise IOError('Invalid socks version %i in response' % rv[0])
+        if rv[1] != 0x00:
+            raise IOError('SOCKS5 proxy error %i' % rv[1])
+        if rv[2] != 0x00:
+            raise IOError('SOCKS5 malformed response')
+        if rv[3] == AddressType.IPV4:
+            bindaddr = recvall(sock, 4)
+        elif rv[3] == AddressType.IPV6:
+            bindaddr = recvall(sock, 16)
+        elif rv[3] == AddressType.DOMAINNAME:
+            asize = recvall(sock, 1)[0]
+            bindaddr = recvall(sock, asize)
+        else:
+            raise IOError('SOCKS5 malformed response')
+        bindport = recvall(sock, 2)
+
+    def __repr__(self):
+        return 'Socks5Proxy(%s:%i)' % (self.dst)
+
+# Node connection #
 class NodeConn(threading.Thread):
-    def __init__(self, dstaddr, dstport, log, peermgr,
+    def __init__(self, proxy, dstaddr, dstport, log, peermgr,
                  params, payload):
         threading.Thread.__init__(self)
         self.log = log
+        self.proxy = proxy
         self.peermgr = peermgr
         self.params = params
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.recvbuf = ""
         self.ver_send = MIN_PROTO_VERSION
         self.ver_recv = MIN_PROTO_VERSION
         self.last_sent = 0
         self.dst = (dstaddr, dstport)
         self.dstname = '%s:%i' % self.dst
+        self.sock = None
 
         self.transactions = payload
 
     def run(self):
-        self.log.write("connecting to %s\n" % self.dstname)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.log.write("connecting to %s through %s\n" % (self.dstname, self.proxy))
+        if self.proxy is not None:
+            firsthop = self.proxy.dst
+        else:
+            firsthop = self.dst
+
+        # connect directly to first hop
         try:
-            self.sock.connect(self.dst)
+            self.sock.connect(firsthop)
         except Exception as e:
-            self.log.write("error connecting to %s\n" % self.dstname)
+            self.log.write("error connecting to %s:%i\n" % firsthop)
+            self.handle_close()
+            return
+
+        # connect through proxy to second hop, if appropriate
+        try:
+            if self.proxy is not None:
+                self.proxy.connect(self.sock, self.dst[0], self.dst[1])
+        except Exception as e:
+            self.log.write("error connecting through proxy to %s: %s\n" % (self.dstname, str(e)))
             self.handle_close()
             return
 
         # stuff version msg into sendbuf
         vt = msg_version()
         vt.nServices = 0
-        vt.addrTo.ip = self.dst[0]
+        if self.dst[0].endswith('.onion'):
+            vt.addrTo.ip = '0.0.0.0' # XXX encode onion into IP like bitcoind does
+        else:
+            vt.addrTo.ip = self.dst[0]
         vt.addrTo.port = self.dst[1]
         vt.addrFrom.ip = "0.0.0.0"
         vt.addrFrom.port = 0
@@ -186,7 +280,7 @@ class NodeConn(threading.Thread):
                 self.getdata_block(inv.hash)
 
 class PeerManager(object):
-    def __init__(self, log, params, payload):
+    def __init__(self, log, proxy, params, payload):
         self.log = log
         self.params = params
         self.peers = []
@@ -194,10 +288,11 @@ class PeerManager(object):
         self.tried = {}
         self.payload = payload
         self.stats = {x:0 for x in payload.keys()}
+        self.proxy = proxy
 
     def add(self, host, port):
         self.tried[host] = True
-        c = NodeConn(host, port, self.log, self, self.params, self.payload)
+        c = NodeConn(self.proxy, host, port, self.log, self, self.params, self.payload)
         self.peers.append(c)
         return c
 
@@ -263,7 +358,10 @@ def main():
     if verbose:
         print("Attempting broadcast of %i transactions to %i peers in %i seconds" % (len(transactions), len(nodes), timeout))
 
-    peermgr = PeerManager(log, params, transactions)
+    #proxy = SOCKS5Proxy('127.0.0.1', 9050)
+    proxy = None
+
+    peermgr = PeerManager(log, proxy, params, transactions)
 
     threads = []
 
