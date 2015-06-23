@@ -1,0 +1,298 @@
+#!/usr/bin/python2
+#
+# submittx.py - Stand-alone transaction submitter
+#
+# Distributed under the MIT/X11 software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+#
+# W.J. 2015 - based on "pynode" from https://github.com/jgarzik/pynode.git
+#
+from __future__ import print_function, division
+
+import struct
+import socket
+import time
+import sys
+import threading
+from io import BytesIO
+from binascii import unhexlify
+
+import bitcoin
+from bitcoin.core import CTransaction, b2lx
+from bitcoin.core.serialize import Hash
+from bitcoin.messages import msg_version, msg_inv, msg_ping, msg_verack, msg_pong, msg_tx, messagemap, MsgSerializable, MSG_TX, MSG_BLOCK
+from bitcoin.net import CInv
+
+MIN_PROTO_VERSION = 60000
+PROTO_VERSION = 60000
+MY_SUBVERSION = "/pynode:0.0.1/"
+
+class NodeConn(threading.Thread):
+    def __init__(self, dstaddr, dstport, log, peermgr,
+                 params, payload):
+        threading.Thread.__init__(self)
+        self.log = log
+        self.peermgr = peermgr
+        self.params = params
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.recvbuf = ""
+        self.ver_send = MIN_PROTO_VERSION
+        self.ver_recv = MIN_PROTO_VERSION
+        self.last_sent = 0
+        self.dst = (dstaddr, dstport)
+        self.dstname = '%s:%i' % self.dst
+
+        self.transactions = payload
+
+    def run(self):
+        self.log.write("connecting to %s\n" % self.dstname)
+        try:
+            self.sock.connect(self.dst)
+        except Exception as e:
+            self.log.write("error connecting to %s\n" % self.dstname)
+            self.handle_close()
+            return
+
+        # stuff version msg into sendbuf
+        vt = msg_version()
+        vt.nServices = 0
+        vt.addrTo.ip = self.dst[0]
+        vt.addrTo.port = self.dst[1]
+        vt.addrFrom.ip = "0.0.0.0"
+        vt.addrFrom.port = 0
+        vt.nStartingHeight = 0
+        vt.strSubVer = MY_SUBVERSION
+        self.send_message(vt)
+
+        self.log.write("connected to " + self.dstname + "\n")
+        while True:
+            try:
+                t = self.sock.recv(8192)
+                if len(t) <= 0:
+                    raise ValueError
+            except (IOError, ValueError):
+                self.handle_close()
+                return
+            self.recvbuf += t
+            self.got_data()
+
+    def stop(self):
+        self.handle_close()
+
+    def handle_close(self):
+        if not self.sock:
+            return
+        self.log.write("close " + self.dstname + "\n")
+        self.recvbuf = ""
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+            self.sock.close()
+        except:
+            pass
+        self.sock = None
+
+    def got_data(self):
+        while True:
+            if len(self.recvbuf) < 4:
+                return
+            if self.recvbuf[:4] != self.params.MESSAGE_START:
+                raise ValueError("got garbage %s" % repr(self.recvbuf))
+            # check checksum
+            if len(self.recvbuf) < 4 + 12 + 4 + 4:
+                return
+            command = self.recvbuf[4:4 + 12].split("\x00", 1)[0]
+            msglen = struct.unpack("<i", self.recvbuf[4 + 12:4 + 12 + 4])[0]
+            checksum = self.recvbuf[4 + 12 + 4:4 + 12 + 4 + 4]
+            if len(self.recvbuf) < 4 + 12 + 4 + 4 + msglen:
+                return
+            msg = self.recvbuf[:4 + 12 + 4 + 4 + msglen]
+            self.recvbuf = self.recvbuf[4 + 12 + 4 + 4 + msglen:]
+
+            if command in messagemap:
+                t = MsgSerializable.stream_deserialize(BytesIO(msg), self.ver_recv)
+                self.got_message(t)
+            else:
+                self.log.write("UNKNOWN COMMAND %s %s\n" % (command, repr(msg)))
+
+    def send_message(self, message):
+        self.log.write("send %s\n" % repr(message))
+
+        tmsg = message.to_bytes()
+
+        try:
+            self.sock.sendall(tmsg)
+            self.last_sent = time.time()
+        except:
+            self.handle_close()
+
+    def start_broadcast(self):
+        self.log.write('Starting broadcast\n')
+        msg = msg_inv()
+        for h in self.transactions.keys():
+            inv = CInv()
+            inv.type = MSG_TX
+            inv.hash = h
+            msg.inv.append(inv)
+        self.send_message(msg)
+
+    def got_message(self, message):
+        if self.last_sent + 30 * 60 < time.time():
+            self.send_message(msg_ping(self.ver_send))
+
+        self.log.write("recv %s\n" % repr(message))
+
+        if message.command == "version":
+            self.ver_send = min(PROTO_VERSION, message.nVersion)
+            if self.ver_send < MIN_PROTO_VERSION:
+                self.log.write(
+                    "Obsolete version %d, closing\n" % (self.ver_send,))
+                self.handle_close()
+                return
+
+            self.send_message(msg_verack(self.ver_send))
+
+            self.start_broadcast()
+
+        elif message.command == "verack":
+            self.ver_recv = self.ver_send
+
+        elif message.command == "ping":
+            self.send_message(msg_pong(self.ver_send, message.nonce))
+
+        elif message.command == "getdata":
+            self.getdata(message)
+
+    def getdata_tx(self, txhash):
+        self.log.write('getdata_tx %s' % b2lx(txhash))
+        if txhash in self.transactions:
+            msg = msg_tx()
+            msg.tx = self.transactions[txhash]
+            self.send_message(msg)
+            self.peermgr.tx_broadcasted(txhash)
+        else:
+            self.log.write('Peer requested unknown transaction\n')
+
+    def getdata_block(self, blkhash):
+        self.log.write('Peer requested block - this is unsupported\n')
+
+    def getdata(self, message):
+        if len(message.inv) > 50000:
+            self.handle_close()
+            return
+        for inv in message.inv:
+            if inv.type == MSG_TX:
+                self.getdata_tx(inv.hash)
+            elif inv.type == MSG_BLOCK:
+                self.getdata_block(inv.hash)
+
+class PeerManager(object):
+    def __init__(self, log, params, payload):
+        self.log = log
+        self.params = params
+        self.peers = []
+        self.addrs = {}
+        self.tried = {}
+        self.payload = payload
+        self.stats = {x:0 for x in payload.keys()}
+
+    def add(self, host, port):
+        self.tried[host] = True
+        c = NodeConn(host, port, self.log, self, self.params, self.payload)
+        self.peers.append(c)
+        return c
+
+    def closeall(self):
+        for peer in self.peers:
+            peer.handle_close()
+        self.peers = []
+
+    def tx_broadcasted(self, txhash):
+        self.stats[txhash] += 1
+
+def join_all(threads, timeout):
+    '''
+    Join a bunch of threads, with timeout.
+    '''
+    wait_until = time.time() + timeout
+    alive = len(threads)
+    while alive:
+        alive = 0
+        for t in threads:
+            next_wait = wait_until - time.time()
+            if next_wait <= 0:
+                return
+            t.join(next_wait)
+            alive += t.isAlive()
+
+def parse_host_port(node, default_port):
+    (host, _, port) = node.partition(':')
+    if port:
+        port = int(port)
+    else:
+        port = default_port
+    return (host,port)
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: %s <mainnet|testnet|regtest> TXHEX[,TXHEX...] NODE [NODE...]" % sys.argv[0])
+        sys.exit(1)
+
+    chain = sys.argv[1]
+    nodes = sys.argv[3:]
+    timeout = 10
+    verbose = True
+
+    log = sys.stdout
+
+    try:
+        bitcoin.SelectParams(chain)
+    except:
+        log.write("invalid network\n")
+        sys.exit(1)
+    params = bitcoin.params
+
+    # build transactions list
+    transactions = {}
+    for txdata in sys.argv[2].split(','):
+        transactions[Hash(txdata)] = CTransaction.deserialize(unhexlify(txdata))
+
+    if verbose:
+        print("Attempting broadcast of %i transactions to %i peers in %i seconds" % (len(transactions), len(nodes), timeout))
+
+    peermgr = PeerManager(log, params, transactions)
+
+    threads = []
+
+    # connect to specified remote node(s)
+    for node in nodes:
+        (host, port) = parse_host_port(node, params.DEFAULT_PORT)
+        c = peermgr.add(host, port)
+        threads.append(c)
+
+    # program main loop
+    def start(timeout=None):
+        for t in threads:
+            t.start()
+        try:
+            join_all(threads, timeout)
+        finally:
+            for t in threads:
+                t.stop()
+            join_all(threads, timeout)
+
+    start(timeout)
+    if verbose:
+        print()
+        print('Number of successful broadcasts:')
+    total = 0
+    for (txhash, count) in peermgr.stats.items():
+        if verbose:
+            print('  %s %4i' % (b2lx(txhash), count))
+        total += count
+
+    # non-zero exit status if at least one succesful submit
+    exit(total == 0)
+
+if __name__ == '__main__':
+    main()
+
