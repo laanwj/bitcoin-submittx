@@ -1,6 +1,6 @@
 #!/usr/bin/python2
 #
-# submittx.py - Stand-alone transaction submitter
+# bitcoin-submittx - Stand-alone transaction submitter
 #
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
@@ -225,6 +225,10 @@ def join_all(threads, timeout):
             alive += t.isAlive()
 
 def parse_host_port(node, default_port):
+    '''
+    Parse host:port tuple.
+    TODO: [::]:12345 IPv6 syntax.
+    '''
     (host, _, port) = node.partition(':')
     if port:
         port = int(port)

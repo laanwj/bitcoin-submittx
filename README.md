@@ -60,5 +60,5 @@ TODO
 Dependencies
 --------------
 
-- [python-bitcoinlib](https://github.com/petertodd/python-bitcoinlib)
+- [python-bitcoinlib](https://github.com/petertodd/python-bitcoinlib), also available via [pypi](https://pypi.python.org/pypi/python-bitcoinlib): `pip install python-bitcoinlib`
 
