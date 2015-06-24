@@ -16,6 +16,7 @@ import sys
 import threading
 from io import BytesIO
 from binascii import unhexlify
+import argparse
 
 import bitcoin
 from bitcoin.core import CTransaction, b2lx
@@ -50,17 +51,32 @@ class AddressType:
     DOMAINNAME = 0x03
     IPV6 = 0x04
 
-class SOCKS5Proxy(object):
+class AbstractConnector(object):
+    def connect(self, sock, dst):
+        raise NotImplemented
+
+class DirectConnection(AbstractConnector):
+    '''
+    Dummy object representing a direct socket connection
+    '''
+    def connect(self, sock, dst):
+        sock.connect(dst)
+
+    def __repr__(self):
+        return 'DirectConnection'
+
+class SOCKS5Proxy(AbstractConnector):
     '''
     SOCKS5 proxy, as described in RFC1928
     '''
-    def __init__(self, host, port):
-        self.dst = (host, port)
+    def __init__(self, dst):
+        self.dst = dst
 
-    def connect(self, sock, host, port):
+    def connect(self, sock, dst):
         '''SOCKS5 negotiation.
         sock must already be connected to proxy.
         '''
+        (host, port) = dst
         # version, nmethods, support unauthenticated
         sock.sendall(bytearray([0x05, 0x01, 0x00]))
         # receive version, chosen method
@@ -123,26 +139,17 @@ class NodeConn(threading.Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.log.write("connecting to %s through %s\n" % (self.dstname, self.proxy))
         if self.proxy is not None:
-            firsthop = self.proxy.dst
+            hops = [(DirectConnection(), self.proxy.dst), (self.proxy, self.dst)]
         else:
-            firsthop = self.dst
+            hops = [(DirectConnection(), self.dst)]
 
-        # connect directly to first hop
-        try:
-            self.sock.connect(firsthop)
-        except Exception as e:
-            self.log.write("error connecting to %s:%i\n" % firsthop)
-            self.handle_close()
-            return
-
-        # connect through proxy to second hop, if appropriate
-        try:
-            if self.proxy is not None:
-                self.proxy.connect(self.sock, self.dst[0], self.dst[1])
-        except Exception as e:
-            self.log.write("error connecting through proxy to %s: %s\n" % (self.dstname, str(e)))
-            self.handle_close()
-            return
+        for method,dst in hops:
+            try:
+                method.connect(self.sock, dst)
+            except Exception as e:
+                self.log.write("error connecting to %s:%i through %s\n" % (dst[0], dst[1], method))
+                self.handle_close()
+                return
 
         # stuff version msg into sendbuf
         vt = msg_version()
@@ -304,6 +311,7 @@ class PeerManager(object):
     def tx_broadcasted(self, txhash):
         self.stats[txhash] += 1
 
+# Miscelleneous utility functions #
 def join_all(threads, timeout):
     '''
     Join a bunch of threads, with timeout.
@@ -328,23 +336,35 @@ def parse_host_port(node, default_port):
     if port:
         port = int(port)
     else:
+        if default_port is None:
+            raise ValueError('Must provide port in %s' % node)
         port = default_port
     return (host,port)
 
+# Main program logic #
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Transaction submission tool")
+    parser.add_argument('network', metavar='NETWORK', help='Network to connect to (mainnet, regtest, testnet). This also determines the default port')
+    parser.add_argument('transactions', metavar='TXHEX', help='Serialized transactions to broadcast, separated by commas')
+    parser.add_argument('nodes', metavar='NODES', help='Nodes to connect to, denoted either host or host:port', nargs='+')
+    parser.add_argument('--proxy', '-p', help='SOCKS5 proxy to connect through', default=None)
+    parser.add_argument('--timeout', '-t', help='Number of seconds to wait before disconnecting from nodes (default is 10)', type=int, default=10)
+    return parser.parse_args()
+
 def main():
-    if len(sys.argv) < 4:
-        print("Usage: %s <mainnet|testnet|regtest> TXHEX[,TXHEX...] NODE [NODE...]" % sys.argv[0])
-        sys.exit(1)
+    args = parse_args()
 
-    chain = sys.argv[1]
-    nodes = sys.argv[3:]
-    timeout = 10
-    verbose = True
-
+    timeout = args.timeout
+    verbose = True # XXX flag=False doesn't avoid log output
+    if args.proxy is None:
+        proxy = None
+    else:
+        proxy = SOCKS5Proxy(parse_host_port(args.proxy, None))
     log = sys.stdout
 
     try:
-        bitcoin.SelectParams(chain)
+        bitcoin.SelectParams(args.network)
     except:
         log.write("invalid network\n")
         sys.exit(1)
@@ -352,22 +372,20 @@ def main():
 
     # build transactions list
     transactions = {}
-    for txdata in sys.argv[2].split(','):
+    for txdata in args.transactions.split(','):
         transactions[Hash(txdata)] = CTransaction.deserialize(unhexlify(txdata))
+
+    # parse nodes list
+    nodes = [parse_host_port(node, params.DEFAULT_PORT) for node in args.nodes]
 
     if verbose:
         print("Attempting broadcast of %i transactions to %i peers in %i seconds" % (len(transactions), len(nodes), timeout))
 
-    #proxy = SOCKS5Proxy('127.0.0.1', 9050)
-    proxy = None
-
     peermgr = PeerManager(log, proxy, params, transactions)
-
     threads = []
 
     # connect to specified remote node(s)
-    for node in nodes:
-        (host, port) = parse_host_port(node, params.DEFAULT_PORT)
+    for host,port in nodes:
         c = peermgr.add(host, port)
         threads.append(c)
 

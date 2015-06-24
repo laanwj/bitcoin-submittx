@@ -11,15 +11,28 @@ Usage
 
 Usage:
 
-    bitcoin-submittx <mainnet|testnet|regtest> TXHEX[,TXHEX...] NODE [NODE...]
+    usage: bitcoin-submittx [-h] [--proxy PROXY] [--timeout TIMEOUT]
+                            NETWORK TXHEX NODES [NODES ...]
 
-- `<mainnet|testnet|regtest>` selects the network to use. This also determines the default port
-- `TXHEX` is the serialized transaction, encoded as hexadecimal
-- `NODE` is one or more node addresses (`host` or `host:port`) to submit the transaction to
+    Transaction submission tool
 
-The tool will connect to the provided nodes and inv the transactions. If the
-nodes subsequently request them within the timeout (currently hardcoded to 10
-seconds), they are sent.
+    positional arguments:
+      NETWORK               Network to connect to (mainnet, regtest, testnet).
+                            This also determines the default port
+      TXHEX                 Serialized transactions to broadcast, separated by
+                            commas
+      NODES                 Nodes to connect to, denoted either host or host:port
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      --proxy PROXY, -p PROXY
+                            SOCKS5 proxy to connect through
+      --timeout TIMEOUT, -t TIMEOUT
+                            Number of seconds to wait before disconnecting from
+                            nodes (default is 10)
+
+The tool will connect to the provided nodes and announce the transactions. If the
+nodes subsequently request them within the timeout, they are sent.
 
 The return status of the program will be 0 if at least one node requested the transaction, and 1
 otherwise.
@@ -50,12 +63,14 @@ $ bitcoin-submittx mainnet '010000000...' 127.0.0.1
 ```
 (normally one would not submit the transaction to the localhost node, but this is just an illustrative example)
 
-TODO
-------
+TODOs and contribution ideas
+-----------------------------
 
-- SOCKS5 proxy support (port from [test_framework/socks5.py](https://github.com/bitcoin/bitcoin/blob/master/qa/rpc-tests/test_framework/socks5.py))
 - IPv6 support
 - Provide feedback if the transaction is rejected
+- Tor stream isolation (like `-proxyrandomize` in Bitcoin Core)
+- Load node lists / transactions from file
+- Multi-hop proxies, different proxy types?
 
 Dependencies
 --------------
