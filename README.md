@@ -66,6 +66,8 @@ $ bitcoin-submittx mainnet '010000000...' 127.0.0.1
 TODOs and contribution ideas
 -----------------------------
 
+- Automatically fetch list of nodes to submit to
+  - possibly from DNS seeds (but will this work behind Tor?)
 - IPv6 support
 - Provide feedback if the transaction is rejected
 - Tor stream isolation (like `-proxyrandomize` in Bitcoin Core)
