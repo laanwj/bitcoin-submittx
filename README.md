@@ -67,12 +67,13 @@ TODOs and contribution ideas
 -----------------------------
 
 - Automatically fetch list of nodes to submit to
-  - possibly from DNS seeds (but will this work behind Tor?)
+  - possibly from DNS seeds (but this won't work behind Tor)
 - IPv6 support
 - Provide feedback if the transaction is rejected
 - Tor stream isolation (like `-proxyrandomize` in Bitcoin Core)
 - Load node lists / transactions from file
 - Multi-hop proxies, different proxy types?
+- Feature to handle incoming connections: can be handy when submitting transactions to nodes that are not listening
 
 Dependencies
 --------------
