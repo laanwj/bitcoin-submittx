@@ -373,7 +373,8 @@ def main():
     # build transactions list
     transactions = {}
     for txdata in args.transactions.split(','):
-        transactions[Hash(txdata)] = CTransaction.deserialize(unhexlify(txdata))
+        txdata = unhexlify(txdata)
+        transactions[Hash(txdata)] = CTransaction.deserialize(txdata)
 
     # parse nodes list
     nodes = [parse_host_port(node, params.DEFAULT_PORT) for node in args.nodes]
