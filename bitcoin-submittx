@@ -28,6 +28,16 @@ MIN_PROTO_VERSION = 60001 # Must support BIP0031 (ping/pong)
 PROTO_VERSION = 60001 # Supports BIP0031
 MY_SUBVERSION = "/pynode:0.0.1/"
 
+A = None
+
+class A_COLOR: # Terminal colors
+    reset='\x1b[0m'
+    err='\x1b[91m'
+
+class A_NOCOLOR: # No terminal colors
+    reset=''
+    err=''
+
 # Proxy handling #
 
 ### Utility functions
@@ -147,7 +157,7 @@ class NodeConn(threading.Thread):
             try:
                 method.connect(self.sock, dst)
             except Exception as e:
-                self.log.write("error connecting to %s:%i through %s\n" % (dst[0], dst[1], method))
+                self.log.write("error connecting to %s:%i through %s (%s)\n" % (dst[0], dst[1], method, e))
                 self.handle_close()
                 return
 
@@ -240,7 +250,10 @@ class NodeConn(threading.Thread):
         if self.last_sent + 30 * 60 < time.time():
             self.send_message(msg_ping(self.ver_send))
 
-        self.log.write("recv %s\n" % repr(message))
+        if message.command == "reject":
+            self.log.write("recv %s%s%s\n" % (A.err,repr(message),A.reset))
+        else:
+            self.log.write("recv %s\n" % repr(message))
 
         if message.command == "version":
             self.ver_send = min(PROTO_VERSION, message.nVersion)
@@ -262,6 +275,8 @@ class NodeConn(threading.Thread):
 
         elif message.command == "getdata":
             self.getdata(message)
+
+        # TODO: count rejects
 
     def getdata_tx(self, txhash):
         self.log.write('getdata_tx %s' % b2lx(txhash))
@@ -350,6 +365,7 @@ def parse_args():
     parser.add_argument('nodes', metavar='NODES', help='Nodes to connect to, denoted either host or host:port', nargs='+')
     parser.add_argument('--proxy', '-p', help='SOCKS5 proxy to connect through', default=None)
     parser.add_argument('--timeout', '-t', help='Number of seconds to wait before disconnecting from nodes (default is 10)', type=int, default=10)
+    parser.add_argument('--no-color', help='Use no terminal color in output', action='store_true', default=False)
     return parser.parse_args()
 
 def main():
@@ -361,6 +377,13 @@ def main():
         proxy = None
     else:
         proxy = SOCKS5Proxy(parse_host_port(args.proxy, None))
+
+    global A
+    if args.no_color:
+        A = A_NOCOLOR
+    else:
+        A = A_COLOR
+
     log = sys.stdout
 
     try:
