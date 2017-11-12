@@ -11,8 +11,9 @@ Usage
 
 Usage:
 
-    usage: bitcoin-submittx [-h] [--proxy PROXY] [--timeout TIMEOUT]
-                            NETWORK TXHEX NODES [NODES ...]
+    usage: bitcoin-submittx [-h] [--proxy PROXY] [--timeout TIMEOUT] [--no-color]
+                            [--nodes-file NODES_FILE] [--tx-file TX_FILE]
+                            NETWORK TXHEX [NODES [NODES ...]]
 
     Transaction submission tool
 
@@ -30,6 +31,12 @@ Usage:
       --timeout TIMEOUT, -t TIMEOUT
                             Number of seconds to wait before disconnecting from
                             nodes (default is 10)
+      --no-color            Use no terminal color in output
+      --nodes-file NODES_FILE, -n NODES_FILE
+                            Read list of nodes from file (format: one per line)
+      --tx-file TX_FILE, -r TX_FILE
+                            Read list of transactions from file (format: one per
+                            line)
 
 The tool will connect to the provided nodes and announce the transactions. If the
 nodes subsequently request them within the timeout, they are sent.
@@ -74,9 +81,9 @@ TODOs and contribution ideas
    recv msg_reject(messsage=tx, ccode=@, reason=non-final)
 ```
 - Tor stream isolation (like `-proxyrandomize` in Bitcoin Core)
-- Load node lists / transactions from file
 - Multi-hop proxies, different proxy types?
-- Feature to handle incoming connections: can be handy when submitting transactions to nodes that are not listening
+- Feature to handle incoming connections: can be handy when submitting transactions to nodes that are not listening for
+  e.g. testing
 
 Dependencies
 --------------

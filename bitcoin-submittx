@@ -362,11 +362,19 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Transaction submission tool")
     parser.add_argument('network', metavar='NETWORK', help='Network to connect to (mainnet, regtest, testnet). This also determines the default port')
     parser.add_argument('transactions', metavar='TXHEX', help='Serialized transactions to broadcast, separated by commas')
-    parser.add_argument('nodes', metavar='NODES', help='Nodes to connect to, denoted either host or host:port', nargs='+')
+    parser.add_argument('nodes', metavar='NODES', help='Nodes to connect to, denoted either host or host:port', nargs='*')
     parser.add_argument('--proxy', '-p', help='SOCKS5 proxy to connect through', default=None)
     parser.add_argument('--timeout', '-t', help='Number of seconds to wait before disconnecting from nodes (default is 10)', type=int, default=10)
     parser.add_argument('--no-color', help='Use no terminal color in output', action='store_true', default=False)
+    parser.add_argument('--nodes-file', '-n', help='Read list of nodes from file (format: one per line)', default=None)
+    parser.add_argument('--tx-file', '-r', help='Read list of transactions from file (format: one per line)', default=None)
     return parser.parse_args()
+
+def read_lines(filename):
+    with open(filename, 'r') as f:
+        lines = [line.strip() for line in f]
+        lines = [line for line in lines if line]
+    return lines
 
 def main():
     args = parse_args()
@@ -394,13 +402,25 @@ def main():
     params = bitcoin.params
 
     # build transactions list
+    hex_transactions = args.transactions.split(',') if args.transactions else []
+    if args.tx_file:
+        lines = read_lines(args.tx_file)
+        if verbose:
+            print('Read %d transactions from %s' % (len(lines), args.tx_file))
+        hex_transactions += lines
+
     transactions = {}
-    for txdata in args.transactions.split(','):
+    for txdata in hex_transactions:
         txdata = unhexlify(txdata)
         transactions[Hash(txdata)] = CTransaction.deserialize(txdata)
 
     # parse nodes list
     nodes = [parse_host_port(node, params.DEFAULT_PORT) for node in args.nodes]
+    if args.nodes_file:
+        lines = read_lines(args.nodes_file)
+        nodes += [parse_host_port(node, params.DEFAULT_PORT) for node in lines]
+        if verbose:
+            print('Read %d nodes from %s' % (len(lines), args.nodes_file))
 
     if verbose:
         print("Attempting broadcast of %i transactions to %i peers in %i seconds" % (len(transactions), len(nodes), timeout))
