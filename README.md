@@ -70,6 +70,16 @@ $ bitcoin-submittx mainnet '010000000...' 127.0.0.1
 ```
 (normally one would not submit the transaction to the localhost node, but this is just an illustrative example)
 
+Segwit support
+---------------
+
+As of 2017-11-30, this requires the master version of python-bitcoinlib.
+Version 0.8 fails with `bitcoin.core.serialize.DeserializationExtraDataError: Not all bytes consumed during deserialization`.
+
+A known issue is that bitcoin-submittx invs the wtxid instead of the txid, but
+when it sends the tx the node accepts it. This is probably not correct per
+BIP141. Patches welcome!
+
 TODOs and contribution ideas
 -----------------------------
 
