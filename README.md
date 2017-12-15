@@ -80,6 +80,17 @@ A known issue is that bitcoin-submittx invs the wtxid instead of the txid, but
 when it sends the tx the node accepts it. This is probably not correct per
 BIP141. Patches welcome!
 
+Fork support
+-------------
+
+`bitcoin-submittx`
+
+- can be used for BCH by passing BCH nodes, and using the `mainnet` network parameter.
+
+- can be used for BTG by passing BTG nodes, and using the `btg-mainnet` network parameter.
+
+You can find nodes for the appropriate fork on [https://bitnodes.earn.com/](bitnodes), or by manually querying their DNS seed.
+
 TODOs and contribution ideas
 -----------------------------
 
