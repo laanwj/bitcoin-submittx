@@ -388,7 +388,7 @@ def SelectParams(name):
     if name == 'btg-mainnet':
         bitcoin.params = BTGParams()
     else:
-        bitcoin.SelectParams(args.network)
+        bitcoin.SelectParams(name)
 
 def main():
     args = parse_args()
@@ -411,7 +411,7 @@ def main():
     try:
         SelectParams(args.network)
     except:
-        log.write("invalid network\n")
+        log.write("invalid network %s\n" % args.network)
         sys.exit(1)
     params = bitcoin.params
 
