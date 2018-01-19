@@ -376,7 +376,7 @@ def read_lines(filename):
         lines = [line for line in lines if line]
     return lines
 
-# Monkey-patch python-bitcoinlib for BTG support
+# Monkey-patch python-bitcoinlib for various forks support
 class BTGParams(bitcoin.MainParams):
     MESSAGE_START = b'\xe1\x47\x6d\x44'
     DEFAULT_PORT = 8338
@@ -384,9 +384,18 @@ class BTGParams(bitcoin.MainParams):
                        'SCRIPT_ADDR':23,
                        'SECRET_KEY' :128}
 
+class BCXParams(bitcoin.MainParams):
+    MESSAGE_START = b'\x11\x05\xbc\xf9'
+    DEFAULT_PORT = 9003
+    BASE58_PREFIXES = {'PUBKEY_ADDR':75,
+                       'SCRIPT_ADDR':63,
+                       'SECRET_KEY' :128}
+
 def SelectParams(name):
     if name == 'btg-mainnet':
         bitcoin.params = BTGParams()
+    elif name == 'bcx-mainnet':
+        bitcoin.params = BCXParams()
     else:
         bitcoin.SelectParams(name)
 

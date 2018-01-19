@@ -89,6 +89,8 @@ Fork support
 
 - can be used for BTG by passing BTG nodes, and using the `btg-mainnet` network parameter.
 
+- can be used for BCX by passing BCX nodes, and using the `bcx-mainnet` network parameter.
+
 You can find nodes for the appropriate fork on [https://bitnodes.earn.com/](bitnodes), or by manually querying their DNS seed.
 
 TODOs and contribution ideas
