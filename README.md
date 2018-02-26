@@ -113,3 +113,9 @@ Dependencies
 
 - [python-bitcoinlib](https://github.com/petertodd/python-bitcoinlib), also available via [pypi](https://pypi.python.org/pypi/python-bitcoinlib): `pip install python-bitcoinlib`
 
+Other projects
+---------------
+
+Some other projects that might be useful when working with bitcoin transactions at a low level:
+
+- [payment-proto-interface](https://github.com/achow101/payment-proto-interface) This is a simple (Python) application which allows you to interact with the Bitcoin payment protocol manually
