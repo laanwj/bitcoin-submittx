@@ -87,6 +87,8 @@ Fork support
 
 - can be used for BCH by passing BCH nodes, and using the `mainnet` network parameter.
 
+- can be used for BSV by passing BSV nodes, and using the `mainnet` network parameter.
+
 - can be used for BTG by passing BTG nodes, and using the `btg-mainnet` network parameter.
 
 - can be used for BCX by passing BCX nodes, and using the `bcx-mainnet` network parameter.
