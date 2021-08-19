@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python3
 #
 # bitcoin-submittx - Stand-alone transaction submitter
 #
@@ -7,7 +7,6 @@
 #
 # W.J. 2015 - based on "pynode" from https://github.com/jgarzik/pynode.git
 #
-from __future__ import print_function, division
 
 import struct
 import socket
@@ -135,7 +134,7 @@ class NodeConn(threading.Thread):
         self.proxy = proxy
         self.peermgr = peermgr
         self.params = params
-        self.recvbuf = ""
+        self.recvbuf = b""
         self.ver_send = MIN_PROTO_VERSION
         self.ver_recv = MIN_PROTO_VERSION
         self.last_sent = 0
@@ -194,7 +193,7 @@ class NodeConn(threading.Thread):
         if not self.sock:
             return
         self.log.write("close " + self.dstname + "\n")
-        self.recvbuf = ""
+        self.recvbuf = b""
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
@@ -211,7 +210,7 @@ class NodeConn(threading.Thread):
             # check checksum
             if len(self.recvbuf) < 4 + 12 + 4 + 4:
                 return
-            command = self.recvbuf[4:4 + 12].split("\x00", 1)[0]
+            command = self.recvbuf[4:4 + 12].split(b"\x00", 1)[0]
             msglen = struct.unpack("<i", self.recvbuf[4 + 12:4 + 12 + 4])[0]
             checksum = self.recvbuf[4 + 12 + 4:4 + 12 + 4 + 4]
             if len(self.recvbuf) < 4 + 12 + 4 + 4 + msglen:
@@ -250,12 +249,12 @@ class NodeConn(threading.Thread):
         if self.last_sent + 30 * 60 < time.time():
             self.send_message(msg_ping(self.ver_send))
 
-        if message.command == "reject":
+        if message.command == b"reject":
             self.log.write("recv %s%s%s\n" % (A.err,repr(message),A.reset))
         else:
             self.log.write("recv %s\n" % repr(message))
 
-        if message.command == "version":
+        if message.command == b"version":
             self.ver_send = min(PROTO_VERSION, message.nVersion)
             if self.ver_send < MIN_PROTO_VERSION:
                 self.log.write(
@@ -267,13 +266,13 @@ class NodeConn(threading.Thread):
 
             self.start_broadcast()
 
-        elif message.command == "verack":
+        elif message.command == b"verack":
             self.ver_recv = self.ver_send
 
-        elif message.command == "ping":
+        elif message.command == b"ping":
             self.send_message(msg_pong(self.ver_send, message.nonce))
 
-        elif message.command == "getdata":
+        elif message.command == b"getdata":
             self.getdata(message)
 
         # TODO: count rejects
