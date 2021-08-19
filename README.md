@@ -6,6 +6,17 @@ This is a stand-alone P2P transaction submission tool.
 The motivation for this command is the `-walletbroadcast=0` command introduced
 in Bitcoin Core 0.11 (see the [release notes](https://github.com/bitcoin/bitcoin/blob/v0.11.0rc1/doc/release-notes.md#privacy-disable-wallet-transaction-broadcast).)
 
+Dependencies
+------------
+
+This tool uses `python-bitcoinlib`, which can be installed using:
+
+```
+pip3 install --user python-bitcoinlib
+```
+
+Alternatively, to go without installing anything, clone the [git repository](https://github.com/petertodd/python-bitcoinlib.git) and symlink the `bitcoin` directory inside into the root of this repository.
+
 Usage
 --------
 
@@ -106,11 +117,6 @@ TODOs and contribution ideas
 - Multi-hop proxies, different proxy types?
 - Feature to handle incoming connections: can be handy when submitting transactions to nodes that are not listening for
   e.g. testing
-
-Dependencies
---------------
-
-- [python-bitcoinlib](https://github.com/petertodd/python-bitcoinlib), also available via [pypi](https://pypi.python.org/pypi/python-bitcoinlib): `pip install python-bitcoinlib`
 
 Other projects
 ---------------
