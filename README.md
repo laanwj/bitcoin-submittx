@@ -101,10 +101,7 @@ TODOs and contribution ideas
 - Automatically fetch list of nodes to submit to
   - possibly from DNS seeds (but this won't work behind Tor)
 - IPv6 support
-- Provide feedback if the transaction is rejected, apart from
-```
-   recv msg_reject(messsage=tx, ccode=@, reason=non-final)
-```
+- Provide feedback of transaction reach, e.g. when connected to multiple nodes, it could monitor if the transaction comes back via another route.
 - Tor stream isolation (like `-proxyrandomize` in Bitcoin Core)
 - Multi-hop proxies, different proxy types?
 - Feature to handle incoming connections: can be handy when submitting transactions to nodes that are not listening for
