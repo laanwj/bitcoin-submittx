@@ -339,7 +339,7 @@ def join_all(threads, timeout):
             if next_wait <= 0:
                 return
             t.join(next_wait)
-            alive += t.isAlive()
+            alive += t.is_alive()
 
 def parse_host_port(node, default_port):
     '''
