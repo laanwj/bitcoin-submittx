@@ -434,7 +434,8 @@ def main():
     transactions = {}
     for txdata in hex_transactions:
         txdata = unhexlify(txdata)
-        transactions[Hash(txdata)] = CTransaction.deserialize(txdata)
+        tx = CTransaction.deserialize(txdata)
+        transactions[tx.GetTxid()] = tx
 
     # parse nodes list
     nodes = [parse_host_port(node, params.DEFAULT_PORT) for node in args.nodes]
