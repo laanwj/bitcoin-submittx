@@ -25,7 +25,7 @@ from bitcoin.net import CInv
 
 MIN_PROTO_VERSION = 60001 # Must support BIP0031 (ping/pong)
 PROTO_VERSION = 70015 # Supports BIP0031
-MY_SUBVERSION = "/pynode:0.0.1/"
+MY_SUBVERSION = b"/pynode:0.0.1/"
 
 A = None
 
