@@ -359,7 +359,7 @@ def parse_host_port(node, default_port):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Transaction submission tool")
-    parser.add_argument('network', metavar='NETWORK', help='Network to connect to (mainnet, regtest, testnet, btg-mainnet). This also determines the default port')
+    parser.add_argument('network', metavar='NETWORK', help='Network to connect to (mainnet, regtest, testnet). This also determines the default port')
     parser.add_argument('transactions', metavar='TXHEX', help='Serialized transactions to broadcast, separated by commas')
     parser.add_argument('nodes', metavar='NODES', help='Nodes to connect to, denoted either host or host:port', nargs='*')
     parser.add_argument('--proxy', '-p', help='SOCKS5 proxy to connect through', default=None)
@@ -375,28 +375,6 @@ def read_lines(filename):
         lines = [line for line in lines if line]
     return lines
 
-# Monkey-patch python-bitcoinlib for various forks support
-class BTGParams(bitcoin.MainParams):
-    MESSAGE_START = b'\xe1\x47\x6d\x44'
-    DEFAULT_PORT = 8338
-    BASE58_PREFIXES = {'PUBKEY_ADDR':38,
-                       'SCRIPT_ADDR':23,
-                       'SECRET_KEY' :128}
-
-class BCXParams(bitcoin.MainParams):
-    MESSAGE_START = b'\x11\x05\xbc\xf9'
-    DEFAULT_PORT = 9003
-    BASE58_PREFIXES = {'PUBKEY_ADDR':75,
-                       'SCRIPT_ADDR':63,
-                       'SECRET_KEY' :128}
-
-def SelectParams(name):
-    if name == 'btg-mainnet':
-        bitcoin.params = BTGParams()
-    elif name == 'bcx-mainnet':
-        bitcoin.params = BCXParams()
-    else:
-        bitcoin.SelectParams(name)
 
 def main():
     args = parse_args()
@@ -417,7 +395,7 @@ def main():
     log = sys.stdout
 
     try:
-        SelectParams(args.network)
+        bitcoin.SelectParams(args.network)
     except:
         log.write("invalid network %s\n" % args.network)
         sys.exit(1)
