@@ -99,7 +99,7 @@ class SOCKS5Proxy(AbstractConnector):
         assert(len(host) <= 255)
         assert(port >= 0 and port < 0xffff)
         sock.sendall(bytearray([0x05, Command.CONNECT, 0x00, AddressType.DOMAINNAME, len(host)]) +
-                     bytearray(host) +
+                     bytearray(host, 'utf8') +
                      bytearray([port >> 8, port & 0xFF]))
 
         # receive reponse, including bind address and port (which we ignore)
