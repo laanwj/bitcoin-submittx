@@ -20,34 +20,35 @@ Alternatively, to go without installing anything, clone the [git repository](htt
 Usage
 --------
 
-Usage:
+```
+usage: bitcoin-submittx [-h] [--proxy PROXY] [--timeout TIMEOUT] [--no-color]
+                        [--nodes-file NODES_FILE] [--tx-file TX_FILE]
+                        NETWORK TXHEX [NODES ...]
 
-    usage: bitcoin-submittx [-h] [--proxy PROXY] [--timeout TIMEOUT] [--no-color]
-                            [--nodes-file NODES_FILE] [--tx-file TX_FILE]
-                            NETWORK TXHEX [NODES [NODES ...]]
+Transaction submission tool
 
-    Transaction submission tool
+positional arguments:
+  NETWORK               Network to connect to (mainnet, regtest, testnet).
+                        This also determines the default port
+  TXHEX                 Serialized transactions to broadcast, separated by
+                        commas
+  NODES                 Nodes to connect to, denoted either host or host:port
 
-    positional arguments:
-      NETWORK               Network to connect to (mainnet, regtest, testnet).
-                            This also determines the default port
-      TXHEX                 Serialized transactions to broadcast, separated by
-                            commas
-      NODES                 Nodes to connect to, denoted either host or host:port
+options:
+  -h, --help            show this help message and exit
+  --proxy PROXY, -p PROXY
+                        SOCKS5 proxy to connect through
+  --timeout TIMEOUT, -t TIMEOUT
+                        Number of seconds to wait before disconnecting from
+                        nodes (default is 10)
+  --no-color            Use no terminal color in output
+  --nodes-file NODES_FILE, -n NODES_FILE
+                        Read list of nodes from file (format: one per line)
+  --tx-file TX_FILE, -r TX_FILE
+                        Read list of transactions from file (format: one per
+                        line)
 
-    optional arguments:
-      -h, --help            show this help message and exit
-      --proxy PROXY, -p PROXY
-                            SOCKS5 proxy to connect through
-      --timeout TIMEOUT, -t TIMEOUT
-                            Number of seconds to wait before disconnecting from
-                            nodes (default is 10)
-      --no-color            Use no terminal color in output
-      --nodes-file NODES_FILE, -n NODES_FILE
-                            Read list of nodes from file (format: one per line)
-      --tx-file TX_FILE, -r TX_FILE
-                            Read list of transactions from file (format: one per
-                            line)
+```
 
 The tool will connect to the provided nodes and announce the transactions. If the
 nodes subsequently request them within the timeout, they are sent.
