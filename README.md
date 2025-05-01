@@ -1,3 +1,9 @@
+**This project is barely maintained**
+
+For a more modern alternative, see [pushtx](https://github.com/alfred-hodler/pushtx).
+
+---
+
 What is this?
 --------------
 
